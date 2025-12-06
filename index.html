@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MCQ Quiz</title>
+<style>
+    body{
+        font-family: Arial, sans-serif;
+        background: #0a0f1f;
+        padding: 40px;
+        text-align:center;
+        color:white;
+    }
+
+    #welcomeBox, #quizBox{
+        width: 600px;
+        margin: auto;
+        background: #11182e;
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: 0 0 25px rgba(0,180,255,0.4);
+        text-align: left;
+        transition:0.4s;
+    }
+
+    .option{
+        padding: 12px;
+        margin: 10px 0;
+        background: #16203b;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: 0.3s;
+        border:1px solid #23315c;
+        color:#cfe6ff;
+    }
+    .option:hover{
+        background:#1c2a4c;
+        box-shadow:0 0 10px rgba(0,180,255,0.4);
+        transform:scale(1.02);
+    }
+    .selected{
+        background:#0dd7ff !important;
+        color:black !important;
+        box-shadow:0 0 15px #0dd7ff;
+        transform:scale(1.03);
+    }
+    .correct {
+    background: #28a745 !important;
+    color: white !important;
+    box-shadow: 0 0 15px #28a745;
+    }
+
+    .wrong {
+    background: #dc3545 !important;
+    color: white !important;
+    box-shadow: 0 0 15px #dc3545;
+    }
+
+
+    #messageBox{
+        text-align:center;
+        font-size:22px;
+        margin-top:20px;
+        opacity:0;
+        transition:0.5s ease;
+        font-weight:bold;
+        text-shadow:0 0 10px rgba(255,255,255,0.5);
+    }
+
+    button{
+        padding:10px 20px;
+        margin:5px;
+        background:#0dd7ff;
+        border:none;
+        border-radius:8px;
+        cursor:pointer;
+        font-size:16px;
+        font-weight:bold;
+        transition:0.3s;
+        color:black;
+        box-shadow:0 0 12px #0dd7ff;
+    }
+    button:hover{
+        background:white;
+        box-shadow:0 0 20px white;
+        transform:scale(1.05);
+    }
+
+    #scoreCard{
+        margin-top:25px;
+        text-align:center;
+        font-size:26px;
+        display:none;
+        animation: fadeIn 0.6s forwards;
+        text-shadow:0 0 8px #00eaff;
+    }
+
+    @keyframes fadeIn{
+        from{opacity:0; transform:scale(0.8);}
+        to{opacity:1; transform:scale(1);}
+    }
+
+    #timer{
+        font-size:22px;
+        margin-bottom:15px;
+        text-align:center;
+        color:yellow;
+    }
+</style>
+</head>
+<body>
+
+<!-- Welcome Screen -->
+<div id="welcomeBox">
+    <h1>Welcome to the MCQ Quiz</h1>
+    <p>Test your C programming knowledge! You have 2 minutes to complete 10 questions.</p>
+    <button id="startBtn">Start Quiz</button>
+</div>
+
+<!-- Timer + Quiz -->
+<div id="timer" style="display:none;">Time Left: 02:00</div>
+<div id="quizBox" style="display:none;">
+    <h2 id="questionText"></h2>
+    <div id="optionsBox"></div>
+    <br>
+    <button id="prevBtn">Previous</button>
+    <button id="nextBtn">Next</button>
+    <button id="submitBtn">Submit</button>
+</div>
+
+<div id="messageBox"></div>
+<div id="scoreCard"></div>
+
+<script>
+/* Complete quiz script — contains showMessage + selectOption + submit logic */
+
+const questions = [
+    { q:"1. Which data type is used to store characters?", options:{a:"int", b:"float", c:"char", d:"double"}, ans:'c' },
+    { q:"2. What is the size of int in most systems?", options:{a:"4 bytes", b:"2 bytes", c:"8 bytes", d:"1 byte"}, ans:'a' },
+    { q:"3. Which symbol is used for 'AND' operator in C?", options:{a:"&&", b:"||", c:"!", d:"&"}, ans:'a' },
+    { q:"4. Which loop runs at least once?", options:{a:"for", b:"while", c:"do-while", d:"none"}, ans:'c' }, // if you changed questions, ensure 'ans' matches
+    { q:"5. Which header file supports printf?", options:{a:"stdlib.h", b:"stdio.h", c:"string.h", d:"math.h"}, ans:'b' },
+    { q:"6. Which operator gives remainder?", options:{a:"/", b:"%", c:"*", d:"&"}, ans:'b' },
+    { q:"7. Which keyword defines a constant?", options:{a:"final", b:"const", c:"static", d:"var"}, ans:'b' },
+    { q:"8. What is an array?", options:{a:"group of functions", b:"group of loops", c:"group of similar data elements", d:"none"}, ans:'c' },
+    { q:"9. Which operator is used to access pointer value?", options:{a:"*", b:"&", c:"->", d:"[]"}, ans:'a' },
+    { q:"10. Which function terminates the program?", options:{a:"end()", b:"break", c:"exit()", d:"stop()"}, ans:'c' }
+];
+
+let index = 0;
+let selectedAnswers = {};      // stores first answer per question
+const initialTotalTime = 120;  // seconds
+let totalTime = initialTotalTime;
+let timerInterval = null;
+let quizEnded = false;
+let autoNextTimeout = null;
+
+function startQuiz(){
+    if (quizEnded) return;
+    document.getElementById("welcomeBox").style.display = "none";
+    document.getElementById("quizBox").style.display = "block";
+    document.getElementById("timer").style.display = "block";
+    loadQ();
+
+    timerInterval = setInterval(() => {
+        totalTime--;
+        const min = Math.floor(totalTime / 60);
+        const sec = totalTime % 60;
+        const secStr = sec < 10 ? '0' + sec : sec;
+        document.getElementById("timer").innerText = `Time Left: ${min}:${secStr}`;
+
+        if (totalTime <= 0){
+            clearInterval(timerInterval);
+            totalTime = 0;
+            // small delay so UI shows 00:00
+            setTimeout(() => {
+                if (!quizEnded) {
+                    alert("Time's up! Quiz will be submitted automatically.");
+                    submitQuiz(true);
+                }
+            }, 50);
+        }
+    }, 1000);
+}
+
+function loadQ(){
+    if (autoNextTimeout) { 
+        clearTimeout(autoNextTimeout); 
+        autoNextTimeout = null; 
+    }
+
+    document.getElementById("messageBox").style.opacity = 0;
+    const q = questions[index];
+
+    document.getElementById("questionText").textContent = q.q;
+
+    let box = "";
+    for (const key in q.options){
+        box += `<div class="option" data-opt="${key}" onclick="selectOption('${key}')">${key}) ${q.options[key]}</div>`;
+    }
+    document.getElementById("optionsBox").innerHTML = box;
+
+    // If previously answered, re-apply highlights
+    if (selectedAnswers[index]) {
+        applyAnswerHighlights(selectedAnswers[index]);
+    }
+
+    // 🔥 Hide Next button on the 10th question
+    const nextBtn = document.getElementById("nextBtn");
+    if (index === questions.length - 1) {
+        nextBtn.style.display = "none";
+    } else {
+        nextBtn.style.display = "inline-block";
+    }
+}
+
+function applyAnswerHighlights(opt){
+    const correctAns = questions[index].ans;
+    const optionsDivs = document.querySelectorAll("#optionsBox .option");
+
+    optionsDivs.forEach(div => {
+        const thisOpt = div.getAttribute("data-opt");
+        // always show correct answer in green
+        if (thisOpt === correctAns) {
+            div.classList.add("correct");
+        }
+        // if selected and wrong, mark wrong
+        if (thisOpt === opt && opt !== correctAns) {
+            div.classList.add("wrong");
+        }
+        // disable further clicks on this question
+        div.style.pointerEvents = "none";
+    });
+}
+
+function selectOption(opt){
+    if (quizEnded) return;
+
+    // Prevent answering again if the question already has a first answer
+    if (selectedAnswers[index]) return;
+
+    selectedAnswers[index] = opt;
+    const correctAns = questions[index].ans;
+
+    const optionsDivs = document.querySelectorAll("#optionsBox .option");
+
+    optionsDivs.forEach(div => {
+        const thisOpt = div.getAttribute("data-opt");
+
+        // highlight correct answer
+        if (thisOpt === correctAns) {
+            div.classList.add("correct");
+        }
+
+        // highlight wrong selected option
+        if (thisOpt === opt && opt !== correctAns) {
+            div.classList.add("wrong");
+        }
+
+        // disable further clicks
+        div.style.pointerEvents = "none";
+    });
+
+    // feedback message
+    const isCorrect = (opt === correctAns);
+    const correctTxt = questions[index].options[correctAns];
+    showMessage(isCorrect, correctTxt);
+
+    // ❌ NO AUTO SUBMIT ANYMORE
+    // User must press Submit manually
+}
+/* showMessage must be defined — this function displays the message box feedback */
+function showMessage(correct, rightAns){
+    const msg = document.getElementById("messageBox");
+    msg.style.opacity = 1;
+
+    if (correct){
+        msg.style.color = "green";
+        msg.innerHTML = "YOU HAVE ENTERED THE CORRECT ANSWER";
+    } else {
+        msg.style.color = "red";
+        msg.innerHTML = `YOU HAVE ENTERED THE WRONG ANSWER<br><span style="font-size:18px;">THE CORRECT ANSWER IS: <b>${rightAns}</b></span>`;
+    }
+}
+
+function nextQ(){
+    if (quizEnded) return;
+    if (index < questions.length - 1){
+        index++;
+        loadQ();
+    }
+}
+
+function prevQ(){
+    if (quizEnded) return;
+    if (index > 0){
+        index--;
+        loadQ();
+    }
+}
+
+function formatTime(seconds){
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s < 10 ? '0'+s : s}`;
+}
+
+/* submitQuiz(isTimeout) — isTimeout true when time expired */
+function submitQuiz(isTimeout = false){
+    if (quizEnded) return;
+    quizEnded = true;
+
+    // stop timer
+    if (timerInterval){
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+    // clear any auto-next timeout
+    if (autoNextTimeout){
+        clearTimeout(autoNextTimeout);
+        autoNextTimeout = null;
+    }
+
+    // compute score
+    let score = 0;
+    questions.forEach((q,i) => {
+        if (selectedAnswers[i] === q.ans) score++;
+    });
+
+    // compute time taken
+    let timeTakenSeconds;
+    if (isTimeout || totalTime <= 0){
+        timeTakenSeconds = initialTotalTime;
+    } else {
+        timeTakenSeconds = initialTotalTime - totalTime;
+    }
+
+    // show result
+    const scoreCard = document.getElementById("scoreCard");
+    scoreCard.style.display = "block";
+    scoreCard.innerHTML = `
+        <div style="font-size:28px; font-weight:bold; margin-bottom:8px;">Your Score: ${score} / ${questions.length}</div>
+        <div style="font-size:20px;">Time taken: ${formatTime(timeTakenSeconds)}</div>
+    `;
+
+    // hide quiz area to prevent further interaction
+    document.getElementById("quizBox").style.display = "none";
+    document.getElementById("timer").style.display = "none";
+    document.getElementById("messageBox").style.opacity = 0;
+}
+
+/* Wire up buttons safely (make sure IDs exist in your HTML) */
+document.getElementById("startBtn").addEventListener("click", startQuiz);
+document.getElementById("nextBtn").addEventListener("click", nextQ);
+document.getElementById("prevBtn").addEventListener("click", prevQ);
+document.getElementById("submitBtn").addEventListener("click", () => submitQuiz(false));
+</script>
+</body>
+</html>
